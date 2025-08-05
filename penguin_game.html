@@ -2,13 +2,48 @@
 <html>
 <head>
     <title>Penguin Fish Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding: 20px; background: #87CEEB; touch-action: none; }
-        canvas { border: 2px solid #000; background: #E0F6FF; max-width: 100%; height: auto; }
-        #score { font-size: 24px; margin: 10px 0; }
-        @media (max-width: 850px) {
-            body { padding: 10px; }
-            canvas { width: 100%; height: auto; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #87CEEB; 
+            touch-action: none; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            border: none; 
+            background: #E0F6FF; 
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+        #score { 
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 6vw;
+            color: #000;
+            font-weight: bold;
+            z-index: 10;
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.8);
+        }
+        @media (min-width: 768px) {
+            body { padding: 20px; overflow: visible; }
+            canvas { 
+                width: 800px; 
+                height: 600px; 
+                margin: 0 auto;
+                border: 2px solid #000;
+                object-fit: contain;
+            }
+            #score { 
+                position: relative;
+                font-size: 24px;
+                margin: 10px 0;
+                text-shadow: none;
+            }
         }
     </style>
 </head>
@@ -20,7 +55,21 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         
-        const penguin = { x: 400, y: 300, size: 30 };
+        // Mobile responsive canvas setup
+        function resizeCanvas() {
+            if (window.innerWidth < 768) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            } else {
+                canvas.width = 800;
+                canvas.height = 600;
+            }
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        const penguin = { x: canvas.width/2, y: canvas.height/2, size: 30 };
         const fish = [];
         const explosions = [];
         const polarBears = [];
@@ -87,39 +136,44 @@
             oscillator.stop(audioContext.currentTime + 0.1);
         }
         
-        // Create random fish
-        for (let i = 0; i < 20; i++) {
-            const size = Math.random() < 0.3 ? 25 : Math.random() < 0.6 ? 20 : 15;
-            fish.push({
-                x: Math.random() * (canvas.width - size),
-                y: Math.random() * (canvas.height - size),
-                size: size,
-                points: size === 25 ? 10 : size === 20 ? 5 : 1
-            });
+        // Create game objects based on canvas size
+        function createGameObjects() {
+            fish.length = 0;
+            polarBears.length = 0;
+            waterHoles.length = 0;
+            
+            // Create random fish
+            for (let i = 0; i < 20; i++) {
+                const size = Math.random() < 0.3 ? 25 : Math.random() < 0.6 ? 20 : 15;
+                fish.push({
+                    x: Math.random() * (canvas.width - size),
+                    y: Math.random() * (canvas.height - size),
+                    size: size,
+                    points: size === 25 ? 10 : size === 20 ? 5 : 1
+                });
+            }
+            
+            // Create polar bears
+            for (let i = 0; i < 3; i++) {
+                polarBears.push({
+                    x: Math.random() * (canvas.width - 50),
+                    y: Math.random() * (canvas.height - 50),
+                    size: 50
+                });
+            }
+            
+            // Create water holes
+            const holeCount = canvas.width < 768 ? 2 : 3;
+            for (let i = 0; i < holeCount; i++) {
+                waterHoles.push({
+                    x: Math.random() * (canvas.width - 80) + 40,
+                    y: Math.random() * (canvas.height - 80) + 40,
+                    size: 40
+                });
+            }
         }
         
-        // Create polar bears
-        for (let i = 0; i < 3; i++) {
-            polarBears.push({
-                x: Math.random() * (canvas.width - 50),
-                y: Math.random() * (canvas.height - 50),
-                size: 50
-            });
-        }
-        
-        // Create water holes
-        const holePositions = [
-            { x: 150, y: 150 },
-            { x: 650, y: 300 },
-            { x: 400, y: 450 }
-        ];
-        holePositions.forEach(pos => {
-            waterHoles.push({
-                x: pos.x,
-                y: pos.y,
-                size: 40
-            });
-        });
+        createGameObjects();
         
         // Handle keyboard input
         const keys = {};
@@ -144,7 +198,7 @@
                 const canvasY = y * scaleY;
                 
                 if (canvasX >= canvas.width/2 - 100 && canvasX <= canvas.width/2 + 100 && 
-                    canvasY >= 425 && canvasY <= 495) {
+                    canvasY >= canvas.height/2 + 50 && canvasY <= canvas.height/2 + 120) {
                     gameStarted = true;
                     audioContext.resume().then(() => {
                         playBackgroundMusic();
@@ -193,7 +247,7 @@
                 const y = e.clientY - rect.top;
                 
                 if (x >= canvas.width/2 - 100 && x <= canvas.width/2 + 100 && 
-                    y >= 425 && y <= 495) {
+                    y >= canvas.height/2 + 50 && y <= canvas.height/2 + 120) {
                     gameStarted = true;
                     audioContext.resume().then(() => {
                         playBackgroundMusic();
@@ -281,12 +335,13 @@
             if (!gameStarted) {
                 // Draw start screen
                 ctx.fillStyle = '#000';
-                ctx.font = '64px Arial';
+                const titleSize = Math.min(canvas.width / 12, 64);
+                ctx.font = `${titleSize}px Arial`;
                 ctx.textAlign = 'center';
-                ctx.fillText('PENGUIN DASH', canvas.width/2, 150);
+                ctx.fillText('PENGUIN DASH', canvas.width/2, canvas.height/2 - 100);
                 
                 // Draw large penguin
-                const displayPenguin = { x: canvas.width/2, y: 300, size: 120 };
+                const displayPenguin = { x: canvas.width/2, y: canvas.height/2 - 20, size: Math.min(canvas.width / 8, 120) };
                 
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
@@ -336,12 +391,13 @@
                 // Draw play button
                 ctx.fillStyle = '#4CAF50';
                 ctx.beginPath();
-                ctx.roundRect(canvas.width/2 - 100, 425, 200, 70, 20);
+                ctx.roundRect(canvas.width/2 - 100, canvas.height/2 + 50, 200, 70, 20);
                 ctx.fill();
                 
                 ctx.fillStyle = '#FFF';
-                ctx.font = '32px Arial';
-                ctx.fillText('PLAY', canvas.width/2, 470);
+                const buttonSize = Math.min(canvas.width / 25, 32);
+                ctx.font = `${buttonSize}px Arial`;
+                ctx.fillText('PLAY', canvas.width/2, canvas.height/2 + 90);
                 
                 ctx.textAlign = 'left';
                 return;
@@ -467,26 +523,24 @@
                 ctx.fill();
             });
             
-            // Draw score only (no timer)
-            ctx.fillStyle = '#000';
-            ctx.font = '24px Arial';
-            ctx.fillText(`Score: ${score}`, 10, 30);
-            
             // Draw game over screen
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 ctx.fillStyle = '#FFF';
-                ctx.font = '48px Arial';
+                const gameOverSize = Math.min(canvas.width / 16, 48);
+                ctx.font = `${gameOverSize}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.fillText('GAME OVER!', canvas.width/2, canvas.height/2 - 60);
                 
-                ctx.font = '32px Arial';
+                const scoreSize = Math.min(canvas.width / 25, 32);
+                ctx.font = `${scoreSize}px Arial`;
                 ctx.fillText(`Your Score: ${score}`, canvas.width/2, canvas.height/2);
                 ctx.fillText(`High Score: ${highScore}`, canvas.width/2, canvas.height/2 + 40);
                 
-                ctx.font = '24px Arial';
+                const refreshSize = Math.min(canvas.width / 33, 24);
+                ctx.font = `${refreshSize}px Arial`;
                 ctx.fillText('Refresh to play again', canvas.width/2, canvas.height/2 + 80);
                 ctx.textAlign = 'left';
             }
@@ -515,6 +569,6 @@
         gameLoop();
     </script>
     
-    <p>Use arrow keys or WASD to move the penguin and eat the fish!</p>
+    <p style="display: none;">Use arrow keys or WASD to move the penguin and eat the fish!</p>
 </body>
 </html>
