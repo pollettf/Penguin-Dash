@@ -27,11 +27,14 @@
         const waterHoles = [];
         let slowedUntil = 0;
         let gameStarted = false;
+        let score = 0;
+        let gameOver = false;
+        let highScore = localStorage.getItem('penguinHighScore') || 0;
         
         // Audio setup
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Background music (energetic hip-hop inspired)
+        // Background music
         function playBackgroundMusic() {
             const melody = [261.63, 329.63, 392.00, 329.63, 261.63, 220.00, 261.63, 293.66, 329.63, 261.63, 220.00, 196.00];
             const bassLine = [130.81, 164.81, 196.00, 164.81, 130.81, 110.00, 130.81, 146.83, 164.81, 130.81, 110.00, 98.00];
@@ -40,7 +43,6 @@
             function playNote() {
                 if (gameOver) return;
                 
-                // Main melody
                 const oscillator1 = audioContext.createOscillator();
                 const gainNode1 = audioContext.createGain();
                 oscillator1.connect(gainNode1);
@@ -52,7 +54,6 @@
                 oscillator1.start(audioContext.currentTime);
                 oscillator1.stop(audioContext.currentTime + 0.2);
                 
-                // Bass line
                 const oscillator2 = audioContext.createOscillator();
                 const gainNode2 = audioContext.createGain();
                 oscillator2.connect(gainNode2);
@@ -75,24 +76,18 @@
         function playEatingSound() {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
-            
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
-            
             oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
             oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
             oscillator.type = 'square';
             gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
-            
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.1);
         }
-        let score = 0;
-        let gameOver = false;
-        let highScore = localStorage.getItem('penguinHighScore') || 0;
         
-        // Create random fish with different sizes and point values
+        // Create random fish
         for (let i = 0; i < 20; i++) {
             const size = Math.random() < 0.3 ? 25 : Math.random() < 0.6 ? 20 : 15;
             fish.push({
@@ -103,7 +98,7 @@
             });
         }
         
-        // Create polar bear obstacles
+        // Create polar bears
         for (let i = 0; i < 3; i++) {
             polarBears.push({
                 x: Math.random() * (canvas.width - 50),
@@ -112,7 +107,7 @@
             });
         }
         
-        // Create water holes (fixed positions for better spread)
+        // Create water holes
         const holePositions = [
             { x: 150, y: 150 },
             { x: 650, y: 300 },
@@ -131,37 +126,49 @@
         document.addEventListener('keydown', (e) => keys[e.key] = true);
         document.addEventListener('keyup', (e) => keys[e.key] = false);
         
-        // Touch controls for mobile
-        let touchStartX = 0;
-        let touchStartY = 0;
+        // Touch controls
         let isTouching = false;
         
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (!gameStarted) return;
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchStartX = touch.clientX - rect.left;
-            touchStartY = touch.clientY - rect.top;
-            isTouching = true;
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            if (!gameStarted) {
+                // Check play button tap
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const canvasX = x * scaleX;
+                const canvasY = y * scaleY;
+                
+                if (canvasX >= canvas.width/2 - 100 && canvasX <= canvas.width/2 + 100 && 
+                    canvasY >= 425 && canvasY <= 495) {
+                    gameStarted = true;
+                    audioContext.resume().then(() => {
+                        playBackgroundMusic();
+                    });
+                }
+            } else {
+                isTouching = true;
+            }
         });
         
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             if (!gameStarted || !isTouching) return;
+            
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            const currentX = touch.clientX - rect.left;
-            const currentY = touch.clientY - rect.top;
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
             
-            // Scale touch coordinates to canvas coordinates
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
+            const targetX = x * scaleX;
+            const targetY = y * scaleY;
             
-            const targetX = currentX * scaleX;
-            const targetY = currentY * scaleY;
-            
-            // Move penguin towards touch position
             const dx = targetX - penguin.x;
             const dy = targetY - penguin.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -178,10 +185,27 @@
             isTouching = false;
         });
         
+        // Handle mouse clicks for desktop
+        canvas.addEventListener('click', function(e) {
+            if (!gameStarted) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (x >= canvas.width/2 - 100 && x <= canvas.width/2 + 100 && 
+                    y >= 425 && y <= 495) {
+                    gameStarted = true;
+                    audioContext.resume().then(() => {
+                        playBackgroundMusic();
+                    });
+                }
+            }
+        });
+        
         function update() {
             if (gameOver || !gameStarted) return;
             
-            // Move penguin with keyboard (slower if in water)
+            // Move penguin with keyboard
             if (!isTouching) {
                 const speed = Date.now() < slowedUntil ? 2 : 4.5;
                 if (keys['ArrowUp'] || keys['w']) penguin.y -= speed;
@@ -199,18 +223,15 @@
                 const f = fish[i];
                 const dist = Math.sqrt((penguin.x - f.x)**2 + (penguin.y - f.y)**2);
                 if (dist < penguin.size/2 + f.size/2) {
-                    // Create explosion
                     explosions.push({
                         x: f.x, y: f.y, size: 0, maxSize: 40, life: 20
                     });
                     score += f.points;
-                    // Grow penguin based on score (every 15 points increases size by 2)
                     penguin.size = 30 + Math.floor(score / 15) * 2;
                     fish.splice(i, 1);
                     document.getElementById('score').textContent = `Score: ${score}`;
                     playEatingSound();
                     
-                    // Add new fish
                     const size = Math.random() < 0.3 ? 25 : Math.random() < 0.6 ? 20 : 15;
                     fish.push({
                         x: Math.random() * (canvas.width - size),
@@ -240,7 +261,7 @@
                 const hole = waterHoles[i];
                 const dist = Math.sqrt((penguin.x - hole.x)**2 + (penguin.y - hole.y)**2);
                 if (dist < penguin.size/2 + hole.size/2) {
-                    slowedUntil = Date.now() + 2000; // Slow for 2 seconds
+                    slowedUntil = Date.now() + 2000;
                     break;
                 }
             }
@@ -264,27 +285,23 @@
                 ctx.textAlign = 'center';
                 ctx.fillText('PENGUIN DASH', canvas.width/2, 150);
                 
-                // Draw large penguin in center
+                // Draw large penguin
                 const displayPenguin = { x: canvas.width/2, y: 300, size: 120 };
                 
-                // Draw penguin body (black oval)
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
                 ctx.ellipse(displayPenguin.x, displayPenguin.y + displayPenguin.size/6, displayPenguin.size/2.5, displayPenguin.size/2, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw penguin head (black circle)
                 ctx.beginPath();
                 ctx.arc(displayPenguin.x, displayPenguin.y - displayPenguin.size/3.75, displayPenguin.size/3, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw penguin belly (white oval)
                 ctx.fillStyle = '#FFF';
                 ctx.beginPath();
                 ctx.ellipse(displayPenguin.x, displayPenguin.y + displayPenguin.size/10, displayPenguin.size/4, displayPenguin.size/2.5, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw penguin beak (orange triangle)
                 ctx.fillStyle = '#FFA500';
                 ctx.beginPath();
                 ctx.moveTo(displayPenguin.x - displayPenguin.size/6, displayPenguin.y - displayPenguin.size/3.75);
@@ -293,8 +310,6 @@
                 ctx.closePath();
                 ctx.fill();
                 
-                // Draw penguin feet (orange ovals)
-                ctx.fillStyle = '#FFA500';
                 ctx.beginPath();
                 ctx.ellipse(displayPenguin.x - displayPenguin.size/5, displayPenguin.y + displayPenguin.size*0.6, displayPenguin.size/7.5, displayPenguin.size/15, 0, 0, Math.PI * 2);
                 ctx.fill();
@@ -302,7 +317,6 @@
                 ctx.ellipse(displayPenguin.x + displayPenguin.size/5, displayPenguin.y + displayPenguin.size*0.6, displayPenguin.size/7.5, displayPenguin.size/15, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw penguin eyes (white circles with black dots)
                 ctx.fillStyle = '#FFF';
                 ctx.beginPath();
                 ctx.arc(displayPenguin.x - displayPenguin.size/10, displayPenguin.y - displayPenguin.size/3, displayPenguin.size/15, 0, Math.PI * 2);
@@ -319,7 +333,7 @@
                 ctx.arc(displayPenguin.x + displayPenguin.size/10, displayPenguin.y - displayPenguin.size/3, displayPenguin.size/30, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw play button (rounded rectangle)
+                // Draw play button
                 ctx.fillStyle = '#4CAF50';
                 ctx.beginPath();
                 ctx.roundRect(canvas.width/2 - 100, 425, 200, 70, 20);
@@ -333,24 +347,21 @@
                 return;
             }
             
-            // Draw penguin body (black oval)
+            // Draw penguin
             ctx.fillStyle = '#000';
             ctx.beginPath();
             ctx.ellipse(penguin.x, penguin.y + penguin.size/6, penguin.size/2.5, penguin.size/2, 0, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw penguin head (black circle)
             ctx.beginPath();
             ctx.arc(penguin.x, penguin.y - penguin.size/3.75, penguin.size/3, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw penguin belly (white oval)
             ctx.fillStyle = '#FFF';
             ctx.beginPath();
             ctx.ellipse(penguin.x, penguin.y + penguin.size/10, penguin.size/4, penguin.size/2.5, 0, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw penguin beak (orange triangle)
             ctx.fillStyle = '#FFA500';
             ctx.beginPath();
             ctx.moveTo(penguin.x - penguin.size/6, penguin.y - penguin.size/3.75);
@@ -359,8 +370,6 @@
             ctx.closePath();
             ctx.fill();
             
-            // Draw penguin feet (orange ovals)
-            ctx.fillStyle = '#FFA500';
             ctx.beginPath();
             ctx.ellipse(penguin.x - penguin.size/5, penguin.y + penguin.size*0.6, penguin.size/7.5, penguin.size/15, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -368,7 +377,6 @@
             ctx.ellipse(penguin.x + penguin.size/5, penguin.y + penguin.size*0.6, penguin.size/7.5, penguin.size/15, 0, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw penguin eyes (white circles with black dots)
             ctx.fillStyle = '#FFF';
             ctx.beginPath();
             ctx.arc(penguin.x - penguin.size/10, penguin.y - penguin.size/3, penguin.size/15, 0, Math.PI * 2);
@@ -385,17 +393,15 @@
             ctx.arc(penguin.x + penguin.size/10, penguin.y - penguin.size/3, penguin.size/30, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw fish with different colors based on size
+            // Draw fish
             fish.forEach(f => {
                 const color = f.size === 25 ? '#FFD700' : f.size === 20 ? '#FF8C00' : '#FF6B35';
                 
-                // Draw fish body (oval)
                 ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.ellipse(f.x, f.y, f.size/2, f.size/3, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw fish tail (triangle)
                 ctx.beginPath();
                 ctx.moveTo(f.x + f.size/2, f.y);
                 ctx.lineTo(f.x + f.size/1.2, f.y - f.size/4);
@@ -403,7 +409,6 @@
                 ctx.closePath();
                 ctx.fill();
                 
-                // Draw fish eye (white circle with black dot)
                 ctx.fillStyle = '#FFF';
                 ctx.beginPath();
                 ctx.arc(f.x - f.size/6, f.y - f.size/8, f.size/8, 0, Math.PI * 2);
@@ -422,7 +427,6 @@
                 ctx.arc(hole.x, hole.y, hole.size/2, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Add darker blue center
                 ctx.fillStyle = '#2E5C8A';
                 ctx.beginPath();
                 ctx.arc(hole.x, hole.y, hole.size/3, 0, Math.PI * 2);
@@ -431,18 +435,15 @@
             
             // Draw polar bears
             polarBears.forEach(bear => {
-                // Draw bear body (white oval)
                 ctx.fillStyle = '#FFF';
                 ctx.beginPath();
                 ctx.ellipse(bear.x, bear.y + 5, bear.size/2.5, bear.size/2, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw bear head (white circle)
                 ctx.beginPath();
                 ctx.arc(bear.x, bear.y - 8, bear.size/3, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw bear ears (white circles)
                 ctx.beginPath();
                 ctx.arc(bear.x - 8, bear.y - 15, bear.size/8, 0, Math.PI * 2);
                 ctx.fill();
@@ -450,7 +451,6 @@
                 ctx.arc(bear.x + 8, bear.y - 15, bear.size/8, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw bear nose (black triangle)
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
                 ctx.moveTo(bear.x, bear.y - 8);
@@ -459,7 +459,6 @@
                 ctx.closePath();
                 ctx.fill();
                 
-                // Draw bear eyes (black dots)
                 ctx.beginPath();
                 ctx.arc(bear.x - 5, bear.y - 12, 2, 0, Math.PI * 2);
                 ctx.fill();
@@ -468,7 +467,7 @@
                 ctx.fill();
             });
             
-            // Draw score on canvas
+            // Draw score only (no timer)
             ctx.fillStyle = '#000';
             ctx.font = '24px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
@@ -514,33 +513,6 @@
         }
         
         gameLoop();
-        
-        // Handle play button click
-        canvas.addEventListener('click', function(e) {
-            if (!gameStarted) {
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                // Check if click is on play button (rectangular area)
-                if (x >= canvas.width/2 - 100 && x <= canvas.width/2 + 100 && y >= 425 && y <= 495) {
-                    gameStarted = true;
-                    audioContext.resume().then(() => {
-                        playBackgroundMusic();
-                    });
-                }
-            }
-        });
-        
-        // Start background music after user interaction
-        document.addEventListener('keydown', function startAudio() {
-            if (gameStarted) {
-                audioContext.resume().then(() => {
-                    playBackgroundMusic();
-                });
-                document.removeEventListener('keydown', startAudio);
-            }
-        });
     </script>
     
     <p>Use arrow keys or WASD to move the penguin and eat the fish!</p>
