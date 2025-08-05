@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Penguin Fish Game</title>
+    <title>Penguin Dash</title>
     <style>
         body { margin: 0; padding: 20px; background: #87CEEB; }
         canvas { border: 2px solid #000; background: #E0F6FF; }
@@ -27,41 +27,30 @@
         // Audio setup
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Background music (energetic hip-hop inspired)
+        // Background music (upbeat melody)
         function playBackgroundMusic() {
-            const melody = [261.63, 329.63, 392.00, 329.63, 261.63, 220.00, 261.63, 293.66, 329.63, 261.63, 220.00, 196.00];
-            const bassLine = [130.81, 164.81, 196.00, 164.81, 130.81, 110.00, 130.81, 146.83, 164.81, 130.81, 110.00, 98.00];
+            const melody = [523.25, 659.25, 783.99, 659.25, 523.25, 440.00, 523.25, 587.33, 659.25, 523.25, 440.00, 392.00];
             let noteIndex = 0;
             
             function playNote() {
                 if (gameOver) return;
                 
-                // Main melody
-                const oscillator1 = audioContext.createOscillator();
-                const gainNode1 = audioContext.createGain();
-                oscillator1.connect(gainNode1);
-                gainNode1.connect(audioContext.destination);
-                oscillator1.frequency.setValueAtTime(melody[noteIndex], audioContext.currentTime);
-                oscillator1.type = 'sawtooth';
-                gainNode1.gain.setValueAtTime(0.1, audioContext.currentTime);
-                gainNode1.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
-                oscillator1.start(audioContext.currentTime);
-                oscillator1.stop(audioContext.currentTime + 0.2);
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
                 
-                // Bass line
-                const oscillator2 = audioContext.createOscillator();
-                const gainNode2 = audioContext.createGain();
-                oscillator2.connect(gainNode2);
-                gainNode2.connect(audioContext.destination);
-                oscillator2.frequency.setValueAtTime(bassLine[noteIndex], audioContext.currentTime);
-                oscillator2.type = 'square';
-                gainNode2.gain.setValueAtTime(0.08, audioContext.currentTime);
-                gainNode2.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-                oscillator2.start(audioContext.currentTime);
-                oscillator2.stop(audioContext.currentTime + 0.3);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(melody[noteIndex], audioContext.currentTime);
+                oscillator.type = 'triangle';
+                gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
                 
                 noteIndex = (noteIndex + 1) % melody.length;
-                setTimeout(playNote, 250);
+                setTimeout(playNote, 400);
             }
             
             playNote();
@@ -85,8 +74,24 @@
             oscillator.stop(audioContext.currentTime + 0.1);
         }
         let score = 0;
+        let timeLeft = 30;
         let gameOver = false;
         let highScore = localStorage.getItem('penguinHighScore') || 0;
+        
+        // Start timer
+        const timer = setInterval(() => {
+            if (!gameOver) {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    gameOver = true;
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('penguinHighScore', highScore);
+                    }
+                    clearInterval(timer);
+                }
+            }
+        }, 1000);
         
         // Create random fish with different sizes and point values
         for (let i = 0; i < 20; i++) {
@@ -178,7 +183,7 @@
                         highScore = score;
                         localStorage.setItem('penguinHighScore', highScore);
                     }
-
+                    clearInterval(timer);
                     break;
                 }
             }
@@ -416,10 +421,11 @@
                 ctx.fill();
             });
             
-            // Draw score on canvas
+            // Draw score and timer on canvas
             ctx.fillStyle = '#000';
             ctx.font = '24px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
+            ctx.fillText(`Time: ${timeLeft}s`, 10, 60);
             
             // Draw game over screen
             if (gameOver) {
