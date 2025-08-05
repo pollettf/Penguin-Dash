@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Penguin Dash</title>
+    <title>Penguin Fish Game</title>
     <style>
-        body { margin: 0; padding: 20px; background: #87CEEB; }
-        canvas { border: 2px solid #000; background: #E0F6FF; }
+        body { margin: 0; padding: 20px; background: #87CEEB; touch-action: none; }
+        canvas { border: 2px solid #000; background: #E0F6FF; max-width: 100%; height: auto; }
         #score { font-size: 24px; margin: 10px 0; }
+        @media (max-width: 850px) {
+            body { padding: 10px; }
+            canvas { width: 100%; height: auto; }
+        }
     </style>
 </head>
 <body>
@@ -27,30 +31,41 @@
         // Audio setup
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Background music (upbeat melody)
+        // Background music (energetic hip-hop inspired)
         function playBackgroundMusic() {
-            const melody = [523.25, 659.25, 783.99, 659.25, 523.25, 440.00, 523.25, 587.33, 659.25, 523.25, 440.00, 392.00];
+            const melody = [261.63, 329.63, 392.00, 329.63, 261.63, 220.00, 261.63, 293.66, 329.63, 261.63, 220.00, 196.00];
+            const bassLine = [130.81, 164.81, 196.00, 164.81, 130.81, 110.00, 130.81, 146.83, 164.81, 130.81, 110.00, 98.00];
             let noteIndex = 0;
             
             function playNote() {
                 if (gameOver) return;
                 
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
+                // Main melody
+                const oscillator1 = audioContext.createOscillator();
+                const gainNode1 = audioContext.createGain();
+                oscillator1.connect(gainNode1);
+                gainNode1.connect(audioContext.destination);
+                oscillator1.frequency.setValueAtTime(melody[noteIndex], audioContext.currentTime);
+                oscillator1.type = 'sawtooth';
+                gainNode1.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode1.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+                oscillator1.start(audioContext.currentTime);
+                oscillator1.stop(audioContext.currentTime + 0.2);
                 
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.setValueAtTime(melody[noteIndex], audioContext.currentTime);
-                oscillator.type = 'triangle';
-                gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.3);
+                // Bass line
+                const oscillator2 = audioContext.createOscillator();
+                const gainNode2 = audioContext.createGain();
+                oscillator2.connect(gainNode2);
+                gainNode2.connect(audioContext.destination);
+                oscillator2.frequency.setValueAtTime(bassLine[noteIndex], audioContext.currentTime);
+                oscillator2.type = 'square';
+                gainNode2.gain.setValueAtTime(0.08, audioContext.currentTime);
+                gainNode2.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
+                oscillator2.start(audioContext.currentTime);
+                oscillator2.stop(audioContext.currentTime + 0.3);
                 
                 noteIndex = (noteIndex + 1) % melody.length;
-                setTimeout(playNote, 400);
+                setTimeout(playNote, 250);
             }
             
             playNote();
@@ -74,24 +89,8 @@
             oscillator.stop(audioContext.currentTime + 0.1);
         }
         let score = 0;
-        let timeLeft = 30;
         let gameOver = false;
         let highScore = localStorage.getItem('penguinHighScore') || 0;
-        
-        // Start timer
-        const timer = setInterval(() => {
-            if (!gameOver) {
-                timeLeft--;
-                if (timeLeft <= 0) {
-                    gameOver = true;
-                    if (score > highScore) {
-                        highScore = score;
-                        localStorage.setItem('penguinHighScore', highScore);
-                    }
-                    clearInterval(timer);
-                }
-            }
-        }, 1000);
         
         // Create random fish with different sizes and point values
         for (let i = 0; i < 20; i++) {
@@ -132,15 +131,64 @@
         document.addEventListener('keydown', (e) => keys[e.key] = true);
         document.addEventListener('keyup', (e) => keys[e.key] = false);
         
+        // Touch controls for mobile
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let isTouching = false;
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!gameStarted) return;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchStartX = touch.clientX - rect.left;
+            touchStartY = touch.clientY - rect.top;
+            isTouching = true;
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!gameStarted || !isTouching) return;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const currentX = touch.clientX - rect.left;
+            const currentY = touch.clientY - rect.top;
+            
+            // Scale touch coordinates to canvas coordinates
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const targetX = currentX * scaleX;
+            const targetY = currentY * scaleY;
+            
+            // Move penguin towards touch position
+            const dx = targetX - penguin.x;
+            const dy = targetY - penguin.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 5) {
+                const speed = Date.now() < slowedUntil ? 2 : 4.5;
+                penguin.x += (dx / distance) * speed;
+                penguin.y += (dy / distance) * speed;
+            }
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            isTouching = false;
+        });
+        
         function update() {
             if (gameOver || !gameStarted) return;
             
-            // Move penguin (slower if in water)
-            const speed = Date.now() < slowedUntil ? 2 : 4.5;
-            if (keys['ArrowUp'] || keys['w']) penguin.y -= speed;
-            if (keys['ArrowDown'] || keys['s']) penguin.y += speed;
-            if (keys['ArrowLeft'] || keys['a']) penguin.x -= speed;
-            if (keys['ArrowRight'] || keys['d']) penguin.x += speed;
+            // Move penguin with keyboard (slower if in water)
+            if (!isTouching) {
+                const speed = Date.now() < slowedUntil ? 2 : 4.5;
+                if (keys['ArrowUp'] || keys['w']) penguin.y -= speed;
+                if (keys['ArrowDown'] || keys['s']) penguin.y += speed;
+                if (keys['ArrowLeft'] || keys['a']) penguin.x -= speed;
+                if (keys['ArrowRight'] || keys['d']) penguin.x += speed;
+            }
             
             // Keep penguin in bounds
             penguin.x = Math.max(penguin.size/2, Math.min(canvas.width - penguin.size/2, penguin.x));
@@ -183,7 +231,6 @@
                         highScore = score;
                         localStorage.setItem('penguinHighScore', highScore);
                     }
-                    clearInterval(timer);
                     break;
                 }
             }
@@ -421,11 +468,10 @@
                 ctx.fill();
             });
             
-            // Draw score and timer on canvas
+            // Draw score on canvas
             ctx.fillStyle = '#000';
             ctx.font = '24px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
-            ctx.fillText(`Time: ${timeLeft}s`, 10, 60);
             
             // Draw game over screen
             if (gameOver) {
